@@ -1,0 +1,80 @@
+1.backend/package.json
+
+json
+{
+  "name": "support-chat-backend",
+  "version": "1.0.0",
+  "description": "Real-time support chat backend server using WebSockets",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}
+
+2.backend/.env
+
+env
+PORT=5000
+
+
+3..backend/server.js
+
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const cors = require('cors');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 5000;
+
+// Enable Cross-Origin Resource Sharing
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+
+// Initialize Socket.io with CORS handshake configuration
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"]
+  }
+});
+
+// Basic HTTP status check endpoint
+app.get('/status', (req, res) => {
+  res.json({ status: "Chat server is running seamlessly." });
+});
+
+// Socket.io Real-time connection handler
+io.on('connection', (socket) => {
+  console.log(`User connected: ${socket.id}`);
+
+  // Join a dedicated support channel room
+  socket.on('join_room', (roomID) => {
+    socket.join(roomID);
+    console.log(`User ${socket.id} joined room: ${roomID}`);
+  });
+
+  // Handle incoming real-time chat messages
+  socket.on('send_message', (data) => {
+    // Broadcast message instantly to everyone else in the room
+    socket.to(data.room).emit('receive_message', data);
+  });
+
+  // Handle user clean disconnecting
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id}`);
+  });
+});
+
+server.listen(port, () => {
+  console.log(`Backend WebSocket server active on port ${port}`);
+});

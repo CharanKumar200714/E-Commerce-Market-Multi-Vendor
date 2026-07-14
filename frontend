@@ -1,0 +1,166 @@
+frontend/package.json
+
+json
+{
+  "name": "support-chat-frontend",
+  "version": "0.1.0",
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1",
+    "socket.io-client": "^4.7.5"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.3",
+    "postcss": "^8.4.38",
+    "autoprefixer": "^10.4.19"
+  }
+}
+
+
+frontend/src/App.js
+
+import React, { useState, useEffect, useRef } from 'react';
+import io from 'socket.io-client';
+
+// Establish connection to backend WebSocket server
+const socket = io.connect('http://localhost:5000');
+
+function App() {
+  const [username, setUsername] = useState('');
+  const [room, setRoom] = useState('Support-Main');
+  const [isJoined, setIsJoined] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [messageList, setMessageList] = useState([]);
+  
+  const chatEndRef = useRef(null);
+
+  // Auto-scroll chat window when a new message updates the log
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messageList]);
+
+  // Listen for real-time incoming messages from server
+  useEffect(() => {
+    socket.on('receive_message', (data) => {
+      setMessageList((list) => [...list, data]);
+    });
+
+    return () => socket.off('receive_message');
+  }, []);
+
+  const joinChatRoom = (e) => {
+    e.preventDefault();
+    if (username.trim() !== '') {
+      socket.emit('join_room', room);
+      setIsJoined(true);
+    }
+  };
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (currentMessage.trim() !== '' && username !== '') {
+      const messageData = {
+        room: room,
+        author: username,
+        message: currentMessage,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      await socket.emit('send_message', messageData);
+      setMessageList((list) => [...list, messageData]);
+      setCurrentMessage('');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
+      {/* Top Banner with Intern Metadata */}
+      <header className="mb-6 text-center max-w-md w-full bg-slate-800 p-4 rounded-lg border border-slate-700 shadow-xl">
+        <h1 className="text-xl font-bold text-cyan-400">CodTech Support Portal</h1>
+        <p className="text-xs text-slate-400 mt-1">ID: CITS2897 | K. V. Charan Kumar</p>
+      </header>
+
+      {!isJoined ? (
+        /* Login / Room Join Form Interface */
+        <form onSubmit={joinChatRoom} className="bg-slate-800 p-6 rounded-lg shadow-xl border border-slate-700 w-full max-w-md">
+          <h2 className="text-lg font-semibold mb-4 text-center">Join Support Channel</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Your Name</label>
+              <input
+                type="text"
+                placeholder="Enter screen name..."
+                required
+                className="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs uppercase tracking-wider text-slate-400 mb-1">Support Room ID</label>
+              <input
+                type="text"
+                className="w-full bg-slate-950 border border-slate-600 rounded px-3 py-2 text-white focus:outline-none focus:border-cyan-400"
+                value={room}
+                onChange={(e) => setRoom(e.target.value)}
+              />
+            </div>
+            <button type="submit" className="w-full bg-cyan-500 hover:bg-cyan-600 transition-colors text-slate-950 font-bold py-2 rounded">
+              Launch Chat
+            </button>
+          </div>
+        </form>
+      ) : (
+        /* Active Real-Time Chat Workspace */
+        <div className="bg-slate-800 rounded-lg shadow-xl border border-slate-700 w-full max-w-lg flex flex-col h-[500px]">
+          <div className="p-4 bg-slate-700/50 border-b border-slate-600 flex justify-between items-center rounded-t-lg">
+            <div>
+              <span className="font-semibold block text-cyan-400">Room: {room}</span>
+              <span className="text-xs text-slate-400">Connected as: {username}</span>
+            </div>
+            <span className="inline-flex h-3 w-3 rounded-full bg-emerald-500 animate-pulse"></span>
+          </div>
+
+          {/* Interactive Live Message Area */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-950">
+            {messageList.map((msg, index) => {
+              const isMe = msg.author === username;
+              return (
+                <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[75%] px-3 py-2 rounded-lg text-sm ${isMe ? 'bg-cyan-600 text-white rounded-br-none' : 'bg-slate-700 text-white rounded-bl-none'}`}>
+                    <p>{msg.message}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-500 mt-0.5 px-1">
+                    {msg.author} • {msg.time}
+                  </span>
+                </div>
+              );
+            })}
+            <div ref={chatEndRef} />
+          </div>
+
+          {/* Dispatch Message Bar Form */}
+          <form onSubmit={sendMessage} className="p-3 bg-slate-800 border-t border-slate-700 flex gap-2 rounded-b-lg">
+            <input
+              type="text"
+              placeholder="Type message here..."
+              className="flex-1 bg-slate-950 border border-slate-600 rounded px-3 py-2 text-sm focus:outline-none focus:border-cyan-400"
+              value={currentMessage}
+              onChange={(e) => setCurrentMessage(e.target.value)}
+            />
+            <button type="submit" className="bg-cyan-500 hover:bg-cyan-600 transition-colors text-slate-950 px-4 py-2 font-semibold text-sm rounded">
+              Send
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
